@@ -138,12 +138,19 @@ namespace RedSismica.App
 
         private void btnIniciarCU_Click(object sender, EventArgs e)
         {
-            // Muestra todos los controles y oculta el botón de inicio
-            foreach (Control ctrl in this.Controls)
-                ctrl.Visible = true;
-
+            // --- CORRECCIÓN ---
+            // 1. Ocultamos el botón de inicio
             btnIniciarCU.Visible = false;
 
+            // 2. Mostramos SOLO los controles del primer paso
+            // (La grilla y los textboxes de detalle/sismograma)
+            gridEventos.Visible = true;
+            txtDetalleEvento.Visible = true;
+            txtSismograma.Visible = true;
+
+            // (El 'grpMapa' y los demás permanecen ocultos)
+
+            // 3. Iniciamos el flujo
             opcionRegistrarResultadoRevisionManual();
         }
 
