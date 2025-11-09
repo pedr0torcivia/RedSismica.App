@@ -89,27 +89,29 @@ namespace RedSismica.App.Controladores
         // (Llamado desde Pantalla.btnConfirmar_Click)
         public void TomarOpcionAccion(int opcion, PantallaNuevaRevision pantalla)
         {
-            // Flujo: Gestor -> validarAccion() -> Gestor
             if (!validarAccion(pantalla))
             {
-                return; // La validación falló
+                return;
             }
-
-            // Flujo: Gestor -> registrarUsuario() -> Gestor
             registrarUsuario();
 
-            // Opcion 2: "Rechazar Evento"
-            if (opcion == 2)
+            // --- CORRECCIÓN: Switch para A6 y A7 ---
+            switch (opcion)
             {
-                // Flujo: Gestor -> actualizarEstadoRechazado() -> Gestor
-                actualizarEstadoRechazado(pantalla);
-            }
-            else
-            {
-                pantalla.MostrarMensaje("Acción (Confirmar/Derivar) no implementada.");
+                case 1: // A6: Confirmar Evento
+                    actualizarEstadoConfirmado(pantalla);
+                    break;
+                case 2: // Rechazar Evento
+                    actualizarEstadoRechazado(pantalla);
+                    break;
+                case 3: // A7: Solicitar Revisión a Experto
+                    actualizarEstadoDerivado(pantalla);
+                    break;
+                default:
+                    pantalla.MostrarMensaje("Opción no válida.");
+                    return;
             }
 
-            // Flujo: Gestor -> FinCU() -> Gestor
             FinCU(pantalla);
         }
 
@@ -298,6 +300,40 @@ namespace RedSismica.App.Controladores
                 pantalla.MostrarMensaje($"Error al rechazar el evento: {ex.Message}");
             }
         }
+
+        // FLUJOS ALTERNATIVOS
+
+        private void actualizarEstadoConfirmado(PantallaNuevaRevision pantalla)
+        {
+            try
+            {
+                var fechaActual = getFechaHora();
+                eventoSeleccionado.confirmar(fechaActual, this.usuarioLogueado);
+                _context.SaveChanges();
+                pantalla.MostrarMensaje("Evento Confirmado.");
+            }
+            catch (Exception ex)
+            {
+                pantalla.MostrarMensaje($"Error al confirmar el evento: {ex.Message}");
+            }
+        }
+
+        // --- Flujo A7 (Paso 50) ---
+        private void actualizarEstadoDerivado(PantallaNuevaRevision pantalla)
+        {
+            try
+            {
+                var fechaActual = getFechaHora();
+                eventoSeleccionado.derivar(fechaActual, this.usuarioLogueado);
+                _context.SaveChanges();
+                pantalla.MostrarMensaje("Evento Derivado a Experto.");
+            }
+            catch (Exception ex)
+            {
+                pantalla.MostrarMensaje($"Error al derivar el evento: {ex.Message}");
+            }
+        }
+
 
         public void CancelarRevisionActual()
         {
