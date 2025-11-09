@@ -30,6 +30,7 @@ namespace RedSismica.App
             using (var ctx_init = new RedSismicaContext(options))
             {
                 // Aseguramos que la BBDD exista
+                ctx_init.Database.EnsureDeleted();
                 ctx_init.Database.EnsureCreated();
 
                 // Revisamos si ya se importó o si ya hay datos

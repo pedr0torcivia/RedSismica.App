@@ -1,5 +1,4 @@
-﻿// En: RedSismica.App/Controladores/ManejadorRegistrarRespuesta.cs
-using RedSismica.App.Services; // Para el generador de sismograma
+﻿using RedSismica.App.Services;
 using RedSismica.Core.Entities;
 using RedSismica.Core.States;
 using RedSismica.Infrastructure;
@@ -14,19 +13,16 @@ namespace RedSismica.App.Controladores
     public class ManejadorRegistrarRespuesta
     {
         // --- Atributos de Estado (Memoria del Caso de Uso) ---
-
-        // Atributos de tu lista de clases
         private List<EventoSismico> eventosAutodetectadosNoRevisados;
         private EventoSismico eventoSeleccionado;
-        private Empleado usuarioLogueado; // Tu 'nombreOp' o 'responsable'
-        private Sesion sesionActual; // Para simular el logueo
+        private Empleado usuarioLogueado;
+        private Sesion sesionActual;
 
         // --- Dependencias (Inyectadas) ---
         private readonly RedSismicaContext _context;
         private readonly EventoRepositoryEF _repository;
         private readonly CU_GenerarSismograma _generadorSismograma;
 
-        // El Manejador recibe sus "herramientas" (las dependencias)
         public ManejadorRegistrarRespuesta(
             RedSismicaContext context,
             EventoRepositoryEF repository,
@@ -38,250 +34,323 @@ namespace RedSismica.App.Controladores
         }
 
         // --- PASO 1: Inicia el Caso de Uso ---
-        // (Llamado desde Pantalla.opcionRegistrarResultadoRevisionManual)
         public void RegistrarNuevaRevision(PantallaNuevaRevision pantalla)
         {
-            // Simulamos el inicio de sesión
-            buscarUsuarioLogueado();
-
-            // Inicia el flujo
+            if (this.usuarioLogueado == null)
+            {
+                buscarUsuarioLogueado();
+            }
             buscarEventosAutoDetecNoRev(pantalla);
         }
 
         // --- PASO 2: El usuario selecciona un evento ---
-        // (Llamado desde Pantalla.gridEventos_SelectionChanged)
         public void TomarSeleccionEvento(int indice, PantallaNuevaRevision pantalla)
         {
             if (indice < 0 || indice >= eventosAutodetectadosNoRevisados.Count)
-                return; // Selección inválida
+                return;
 
-            eventoSeleccionado = eventosAutodetectadosNoRevisados[indice];
+            var nuevoEventoSeleccionado = eventosAutodetectadosNoRevisados[indice];
+            if (this.eventoSeleccionado == nuevoEventoSeleccionado)
+                return;
 
-            // Inicia la secuencia de "Bloqueo" y "Muestra de Datos"
-            actualizarEventoBloqueado(pantalla);
-            buscarDetallesEventoSismico(pantalla);
-            generarSismograma(pantalla);
-            habilitarOpciones(pantalla);
-        }
-
-        // --- PASO 3: El usuario toma decisiones (No-Op) ---
-        // (Llamados desde los clicks en los RadioButton)
-
-        public void TomarDecisionVisualizarMapa(bool deseaVer, PantallaNuevaRevision pantalla)
-        {
-            // Tu flujo dice: "modelando la alternativa donde el usuario no desea ver el mapa"
-            if (deseaVer)
+            // REQ 1: Revertir selección anterior
+            if (this.eventoSeleccionado != null)
             {
-                pantalla.MostrarMensaje("Función de mapa no implementada.");
+                revertirBloqueoEventoAnterior();
             }
+
+            this.eventoSeleccionado = nuevoEventoSeleccionado;
+
+            // 3. Gestor -> actualizarEventoBloqueado()
+            actualizarEventoBloqueado(pantalla);
+
+            // --- INICIO DE TU NUEVO FLUJO ---
+            // Gestor -> buscarDetalleEventoSismico()
+            buscarDetallesEventoSismico(pantalla);
+            // (Este método llama internamente a generarSismograma)
+
+            // Flujo: "El manejador habilita la opcion... de forma individual"
+            habilitarOpcionVisualizarMapa(pantalla);
+            habilitarModificacionAlcance(pantalla);
+            habilitarModificacionMagnitud(pantalla);
+            habilitarModificacionOrigen(pantalla);
+
+            // Flujo: "Luego el control solicitará la seleccion de una de estas acciones"
+            solicitarSeleccionAcciones(pantalla);
         }
 
-        // Tu flujo dice: "se modele la parte donde el usuario diga que no"
-        public void TomarOpcionModificacionAlcance(bool modificar, PantallaNuevaRevision pantalla) { }
-        public void TomarOpcionModificacionMagnitud(bool modificar, PantallaNuevaRevision pantalla) { }
-        public void TomarOpcionModificacionOrigen(bool modificar, PantallaNuevaRevision pantalla) { }
+        // --- PASO 3: Opciones (No-Op) ---
+        public void TomarDecisionVisualizarMapa(bool deseaVer, PantallaNuevaRevision pantalla) { /* ... */ }
+        public void TomarOpcionModificacionAlcance(bool modificar, PantallaNuevaRevision pantalla) { /* ... */ }
+        public void TomarOpcionModificacionMagnitud(bool modificar, PantallaNuevaRevision pantalla) { /* ... */ }
+        public void TomarOpcionModificacionOrigen(bool modificar, PantallaNuevaRevision pantalla) { /* ... */ }
 
-
-        // --- PASO 4: El usuario confirma la acción final ---
+        // --- PASO 4: Acción final ---
         // (Llamado desde Pantalla.btnConfirmar_Click)
         public void TomarOpcionAccion(int opcion, PantallaNuevaRevision pantalla)
         {
-            // Opcion 1: "Confirmar Evento"
-            // Opcion 2: "Rechazar Evento"
-            // Opcion 3: "Solicitar Revisión a Experto"
-
-            // Tu flujo solo detalla la secuencia de RECHAZAR.
-            // Implementamos esa.
-            if (opcion == 2) // Rechazar
+            // Flujo: Gestor -> validarAccion() -> Gestor
+            if (!validarAccion(pantalla))
             {
+                return; // La validación falló
+            }
+
+            // Flujo: Gestor -> registrarUsuario() -> Gestor
+            registrarUsuario();
+
+            // Opcion 2: "Rechazar Evento"
+            if (opcion == 2)
+            {
+                // Flujo: Gestor -> actualizarEstadoRechazado() -> Gestor
                 actualizarEstadoRechazado(pantalla);
-                pantalla.MostrarMensaje("Evento Rechazado. Fin del Caso de Uso.");
             }
             else
             {
-                pantalla.MostrarMensaje("Acción no implementada en este prototipo.");
+                pantalla.MostrarMensaje("Acción (Confirmar/Derivar) no implementada.");
             }
+
+            // Flujo: Gestor -> FinCU() -> Gestor
+            FinCU(pantalla);
         }
 
         // =================================================================
         // --- MÉTODOS PRIVADOS (Lógica interna del flujo) ---
         // =================================================================
 
+        // 7. Gestor -> getFechaHOra():DateTime -> Gestor
+        private DateTime getFechaHora()
+        {
+            return DateTime.Now;
+        }
+
+        // 4. Gestor -> buscarUsuarioLogueado() -> Gestor
         private void buscarUsuarioLogueado()
         {
-            // Tu flujo: Manejador -> Sesion.getUsuario() -> Empleado.esTuUsuario()
-            // SIMULACIÓN:
-            this.sesionActual = new Sesion
+            if (this.sesionActual == null)
             {
-                FechaHoraInicio = DateTime.Now,
-                // Simulamos que el usuario "operador1" está logueado
-                usuarioLogueado = new Usuario { NombreUsuario = "operador1" }
-            };
-
-            // Usamos el repositorio para traer el Empleado real de la BBDD
+                this.sesionActual = new Sesion
+                {
+                    FechaHoraInicio = DateTime.Now,
+                    usuarioLogueado = new Usuario { NombreUsuario = "operador1" }
+                };
+            }
             this.usuarioLogueado = _repository.BuscarEmpleadoPorUsuario(
                 sesionActual.usuarioLogueado.NombreUsuario);
-
             if (this.usuarioLogueado == null)
             {
-                // En un sistema real, crearíamos un empleado "default" o lanzaríamos error
                 this.usuarioLogueado = new Empleado { Nombre = "Operador", Apellido = "Default" };
             }
         }
 
         private void buscarEventosAutoDetecNoRev(PantallaNuevaRevision pantalla)
         {
-            // Tu flujo: "buscar todos los eventos sísmicos auto detectados"
             this.eventosAutodetectadosNoRevisados =
                 _repository.BuscarEventosAutodetectadosNoRevisados();
-
-            // Tu flujo: "ordenarEventos() por fechaHora de ocurrencia"
-            // (El repositorio ya los trajo ordenados)
-
-            // Tu flujo: "solicitarSeleccionEvento()"
-            // Formateamos los datos para la grilla
-            var listaParaGrilla = eventosAutodetectadosNoRevisados.Select(e => new
+            var listaParaGrilla = new List<object>();
+            foreach (var evento in this.eventosAutodetectadosNoRevisados)
             {
-                Inicio = e.FechaHoraInicio,
-                Magnitud = e.ValorMagnitud,
-                Clasificacion = e.Clasificacion?.Nombre, // Usamos '?' por si es nulo
-                Origen = e.Origen?.Nombre
-            }).ToList<object>(); // Convertimos a List<object>
-
+                listaParaGrilla.Add(evento.GetDatosOcurrencia());
+            }
+            ordenarEventos();
             pantalla.SolicitarSeleccionEvento(listaParaGrilla);
+        }
+
+        private void ordenarEventos()
+        {
+            this.eventosAutodetectadosNoRevisados =
+                this.eventosAutodetectadosNoRevisados
+                    .OrderBy(e => e.GetFechaHora())
+                    .ToList();
         }
 
         private void actualizarEventoBloqueado(PantallaNuevaRevision pantalla)
         {
-            // Tu flujo: (Secuencia larga de actualización de estado)
-            // Implementamos el Patrón State (versión manejador)
-
+            var fechaActual = getFechaHora();
+            eventoSeleccionado.registrarEstadoBloqueado(fechaActual, this.usuarioLogueado);
             try
             {
-                var fechaActual = DateTime.Now;
-
-                // 1. Crear el nuevo estado
-                var nuevoEstado = new Bloqueado { NombreEstado = "Bloqueado" };
-
-                // 2. Crear el registro de historial
-                var nuevoCambio = new CambioDeEstado
-                {
-                    FechaHoraInicio = fechaActual,
-                    Estado = nuevoEstado,
-                    // (Omitimos 'EstadoAnterior' y 'Motivo' 
-                    //  porque tu clase CambioDeEstado.cs no los tiene)
-                };
-
-                // 3. Actualizar el evento
-                eventoSeleccionado.EstadoActual = nuevoEstado;
-                eventoSeleccionado.cambioEstado.Add(nuevoCambio);
-
-                // 4. Persistir en la BBDD
                 _context.SaveChanges();
+                pantalla.MostrarMensaje("El Evento ha sido Bloqueado para su revision");
             }
             catch (Exception ex)
             {
-                pantalla.MostrarMensaje($"Error al bloquear el evento: {ex.Message}");
+                pantalla.MostrarMensaje($"Error al guardar el bloqueo: {ex.InnerException?.Message ?? ex.Message}");
             }
         }
 
-        private void buscarDetallesEventoSismico(PantallaNuevaRevision pantalla)
+        private void revertirBloqueoEventoAnterior()
         {
-            // Tu flujo: "getDetalleEventoSismico()" -> getNombreAlcance, etc.
-
-            // Usamos el 'eventoSeleccionado' que ya tiene TODO cargado
-            // gracias a los 'Include()' del repositorio.
-
-            var sb = new StringBuilder();
-            sb.AppendLine($"--- Evento Sísmico ---");
-            sb.AppendLine($"Inicio: {eventoSeleccionado.FechaHoraInicio:dd/MM/yyyy HH:mm:ss}");
-            sb.AppendLine($"Magnitud: {eventoSeleccionado.ValorMagnitud} (Mw)");
-            sb.AppendLine($"Profundidad: {eventoSeleccionado.LatitudHipocentro} km");
-
-            // Tu flujo: "getNombreAlcance()"
-            sb.AppendLine($"Alcance: {eventoSeleccionado.Alcance?.Nombre ?? "N/D"}");
-
-            // Tu flujo: "getNombreClasificacion()"
-            sb.AppendLine($"Clasificación: {eventoSeleccionado.Clasificacion?.Nombre ?? "N/D"}");
-
-            // Tu flujo: "getNombreOrigen()"
-            sb.AppendLine($"Origen: {eventoSeleccionado.Origen?.Nombre ?? "N/D"}");
-
-            pantalla.MostrarDetalleEventoSismico(sb.ToString());
+            if (this.eventoSeleccionado == null) return;
+            this.eventoSeleccionado.desbloquear(getFechaHora());
         }
 
-        private void generarSismograma(PantallaNuevaRevision pantalla)
+        // Flujo: Gestor -> buscarDetalleEventoSismico() -> Gestor
+        private void buscarDetallesEventoSismico(PantallaNuevaRevision pantalla)
         {
-            // Tu flujo: "generarSismograma() llamando al caso de uso"
+            // 5.1 y 5.2
+            string detallesCompletos = eventoSeleccionado.getDetalleEventoSismico();
+            pantalla.MostrarDetalleEventoSismico(detallesCompletos);
 
-            // (NOTA: El flujo pide "un sismograma por estación". 
-            // Nuestra clase 'CU_GenerarSismograma' solo genera uno simulado.
-            // Para cumplir el flujo, deberíamos iterar 
-            // 'eventoSeleccionado.serieTemporal' y llamar al generador
-            // por cada 's.Sismografo.Estacion' única.
-            // Por simplicidad, generamos solo uno).
+            // 5.3
+            generarSismograma(pantalla);
+        }
 
+        private string? generarSismograma(PantallaNuevaRevision pantalla)
+        {
             try
             {
-                string rutaImagen = _generadorSismograma.Ejecutar();
-                pantalla.MostrarSismograma(rutaImagen);
+                string rutaImagen = _generadorSismograma.Ejecutar("Sismograma General");
+                pantalla.MostrarSismograma(rutaImagen); // Se muestra aquí
+                return rutaImagen;
             }
             catch (Exception ex)
             {
                 pantalla.MostrarMensaje($"Error al generar sismograma: {ex.Message}");
+                return null;
             }
         }
 
-        private void habilitarOpciones(PantallaNuevaRevision pantalla)
+        // --- MÉTODOS PARA HABILITACIÓN INDIVIDUAL ---
+
+        // Flujo: Gestor -> habilitarOpcionVisualizarMapa() -> Gestor
+        private void habilitarOpcionVisualizarMapa(PantallaNuevaRevision pantalla)
         {
-            // Tu flujo: Habilitar todas las opciones
+            // Flujo: Gestor -> opcionMostrarMapa() -> Pantalla
             pantalla.opcionMostrarMapa();
+        }
+
+        // Flujo: Gestor -> habilitarModificaciónAlcance() -> Gestor
+        private void habilitarModificacionAlcance(PantallaNuevaRevision pantalla)
+        {
+            // Flujo: Gestor -> opcionModificaciónAlcance() -> Pantalla
             pantalla.OpcionModificacionAlcance();
+        }
+
+        // Flujo: Gestor -> habilitarModificaciónMagnitud() -> Gestor
+        private void habilitarModificacionMagnitud(PantallaNuevaRevision pantalla)
+        {
+            // Flujo: Gestor -> opcionModificaciónMagnitud() -> Pantalla
             pantalla.OpcionModificacionMagnitud();
+        }
+
+        // Flujo: Gestor -> habilitarModificaciónOrigen() -> Gestor
+        private void habilitarModificacionOrigen(PantallaNuevaRevision pantalla)
+        {
+            // Flujo: Gestor -> opcionModificaciónOrigen() -> Pantalla
             pantalla.OpcionModificacionOrigen();
+        }
+
+        // Flujo: Gestor -> solicitarSeleccionAcciones() -> Pantalla
+        private void solicitarSeleccionAcciones(PantallaNuevaRevision pantalla)
+        {
             pantalla.SolicitarSeleccionAcciones();
             pantalla.MostrarBotonCancelar();
         }
 
+        // --- MÉTODOS DEL FLUJO FINAL ---
+
+        // Flujo: Gestor -> validarAccion() -> Gestor
+        private bool validarAccion(PantallaNuevaRevision pantalla)
+        {
+            if (eventoSeleccionado == null)
+            {
+                pantalla.MostrarMensaje("Error: No hay ningún evento seleccionado.");
+                return false;
+            }
+
+            // Flujo: "valida que exista magnitud, alcance y origen"
+            if (eventoSeleccionado.ValorMagnitud == 0 ||
+                eventoSeleccionado.Alcance == null ||
+                eventoSeleccionado.Origen == null)
+            {
+                pantalla.MostrarMensaje("Error: Faltan datos (Magnitud, Alcance u Origen) en el evento.");
+                return false;
+            }
+            return true;
+        }
+
+        // Flujo: Gestor -> registrarUsuario() -> Gestor
+        private void registrarUsuario()
+        {
+            // (Nos aseguramos de que el usuario esté cargado)
+            if (this.usuarioLogueado == null)
+            {
+                buscarUsuarioLogueado();
+            }
+        }
+
+        // Flujo: Gestor -> actualizarEstadoRechazado() -> Gestor
         private void actualizarEstadoRechazado(PantallaNuevaRevision pantalla)
         {
-            // Tu flujo: (Secuencia larga de Bloqueado -> Rechazado)
-            // Implementamos el Patrón State (versión manejador)
-
             try
             {
-                var fechaActual = DateTime.Now;
+                // Flujo: Gestor -> getFechaHora() -> Gestor
+                var fechaActual = getFechaHora();
 
-                // 1. Crear el nuevo estado
-                var nuevoEstado = new Rechazado { NombreEstado = "Rechazado" };
+                // Flujo: Gestor -> rechazar(...) -> Evento Seleccionado
+                eventoSeleccionado.rechazar(fechaActual, this.usuarioLogueado);
 
-                // 2. Crear el registro de historial
-                var nuevoCambio = new CambioDeEstado
-                {
-                    FechaHoraInicio = fechaActual,
-                    Estado = nuevoEstado,
-                };
-
-                // 3. Finalizar el estado "Bloqueado" anterior (si existe)
-                var estadoBloqueado = eventoSeleccionado.cambioEstado
-                    .FirstOrDefault(ce => ce.Estado.NombreEstado == "Bloqueado"
-                                       && ce.FechaHoraFin == default);
-                if (estadoBloqueado != null)
-                {
-                    estadoBloqueado.FechaHoraFin = fechaActual;
-                }
-
-                // 4. Actualizar el evento
-                eventoSeleccionado.EstadoActual = nuevoEstado;
-                eventoSeleccionado.cambioEstado.Add(nuevoCambio);
-
-                // 5. Persistir en la BBDD
                 _context.SaveChanges();
+                pantalla.MostrarMensaje("Evento Rechazado.");
             }
             catch (Exception ex)
             {
                 pantalla.MostrarMensaje($"Error al rechazar el evento: {ex.Message}");
             }
+        }
+
+        public void CancelarRevisionActual()
+        {
+            // Si hay un evento seleccionado (Bloqueado)...
+            if (this.eventoSeleccionado != null)
+            {
+                // ...lo revertimos a "Autodetectado"
+                revertirBloqueoEventoAnterior();
+                try
+                {
+                    // Guardamos la reversión en la BBDD
+                    _context.SaveChanges();
+                }
+                catch (Exception)
+                {
+                    // Manejar error si la reversión falla
+                }
+            }
+        }
+
+
+        // Flujo: Gestor -> FinCU() -> Gestor
+        private void FinCU(PantallaNuevaRevision pantalla)
+        {
+            string mensajeFinal = "Fin del Caso de Uso.";
+
+            // --- REQUISITO 1: Mostrar resumen ---
+            if (eventoSeleccionado != null)
+            {
+                // Nos aseguramos de que el historial de cambios
+                // esté totalmente cargado desde la BBDD antes de mostrarlo
+                try
+                {
+                    _context.Entry(eventoSeleccionado)
+                            .Collection(e => e.cambioEstado)
+                            .Load();
+                }
+                catch (Exception) { /* Ignorar si falla la carga */ }
+
+                // Generamos el texto del resumen completo
+                mensajeFinal = eventoSeleccionado.getDetalleCompletoConHistorial();
+            }
+
+            // Reseteamos las variables de memoria
+            this.eventoSeleccionado = null;
+            this.eventosAutodetectadosNoRevisados = null;
+
+            // Reiniciamos la UI
+            pantalla.RestaurarEstadoInicial();
+            pantalla.ReiniciarVistaParaNuevoCU();
+
+            // Mostramos el resumen final
+            pantalla.MostrarMensaje(mensajeFinal);
         }
     }
 }

@@ -1,22 +1,22 @@
 ﻿// En: RedSismica.App/Services/CU_GenerarSismograma.cs
 using System;
-using System.Drawing; // <-- Dependencia de UI (WinForms)
+using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 
-// 1. Añadimos el namespace de la capa de Aplicación
 namespace RedSismica.App.Services
 {
     public class CU_GenerarSismograma
     {
-        // Genera un PNG temporal con una traza simulada y devuelve la RUTA COMPLETA
-        public string Ejecutar()
+        // --- CORRECCIÓN ---
+        // Añadimos el argumento (con un valor por defecto)
+        public string Ejecutar(string tituloSismograma = "Simulado")
         {
             int width = 1200, height = 300;
-            // 2. Usamos Path.GetTempFileName() para más seguridad
+            // Usamos el título para generar un nombre de archivo único
             string file = Path.Combine(Path.GetTempPath(),
-                $"sismograma_{DateTime.Now:yyyyMMdd_HHmmssfff}.png");
+                $"sismograma_{tituloSismograma.Replace(" ", "_")}_{DateTime.Now:yyyyMMdd_HHmmssfff}.png");
 
             using (var bmp = new Bitmap(width, height))
             using (var g = Graphics.FromImage(bmp))
@@ -31,11 +31,12 @@ namespace RedSismica.App.Services
                     g.DrawLine(axis, 40, 10, 40, height - 10);
                 }
 
-                // Título/etiquetas
+                // Título/etiquetas (Usamos el título)
                 using (var f = new Font("Segoe UI", 9))
                 using (var b = new SolidBrush(Color.Gray))
                 {
-                    g.DrawString("Sismograma (simulado)", f, b, 44, 14);
+                    // --- CORRECCIÓN ---
+                    g.DrawString(tituloSismograma, f, b, 44, 14);
                     g.DrawString("Amplitud", f, b, 5, 5);
                     g.DrawString("Tiempo →", f, b, width - 120, height / 2 + 6);
                 }

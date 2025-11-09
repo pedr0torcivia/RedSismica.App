@@ -1,5 +1,5 @@
 // 1. Using LIMPIOS - Apuntan a nuestros proyectos
-using RedSismica.App.Controladores; // Crearemos esta carpeta
+using RedSismica.App.Controladores;
 using RedSismica.App.Services;
 using RedSismica.Core.Entities;
 using System.Collections.Generic;
@@ -18,7 +18,6 @@ namespace RedSismica.App
         private ManejadorRegistrarRespuesta manejador;
 
         // 4. CONSTRUCTOR LIMPIO (Inyección de Dependencias)
-        // El Manejador se "inyecta" desde Program.cs
         public PantallaNuevaRevision(ManejadorRegistrarRespuesta manejador)
         {
             InitializeComponent();
@@ -26,11 +25,24 @@ namespace RedSismica.App
         }
 
         // --- MÉTODOS PÚBLICOS (La "Interfaz" de la Vista) ---
-        // Estos métodos los llama el Manejador
 
         public void Habilitar()
         {
             this.Enabled = true;
+        }
+
+        // --- MÉTODO NUEVO (Llamado por FinCU) ---
+        public void ReiniciarVistaParaNuevoCU()
+        {
+            // Oculta todos los controles
+            foreach (Control ctrl in this.Controls)
+            {
+                if (ctrl != btnIniciarCU)
+                    ctrl.Visible = false;
+            }
+
+            // Muestra solo el botón de inicio
+            btnIniciarCU.Visible = true;
         }
 
         public void SolicitarSeleccionEvento(List<object> eventos)
@@ -47,25 +59,18 @@ namespace RedSismica.App
             txtDetalleEvento.Text = detalle;
         }
 
-        // 5. Método 'MostrarSismograma' SIMPLIFICADO
-        // Solo muestra la imagen que le pasa el manejador.
         public void MostrarSismograma(string rutaImagen)
         {
             try
             {
                 txtSismograma.Visible = false;
                 picSismograma.Visible = true;
-
-                // Liberar imagen anterior si existe
                 if (picSismograma.Image != null)
                 {
                     var old = picSismograma.Image;
                     picSismograma.Image = null;
                     old.Dispose();
                 }
-
-                // Cargar la nueva imagen desde el archivo
-                // Usamos FileStream para evitar bloqueos del archivo
                 using (var fs = new FileStream(rutaImagen, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
                     picSismograma.Image = Image.FromStream(fs);
@@ -118,7 +123,6 @@ namespace RedSismica.App
         }
 
         // --- EVENT HANDLERS (Los "Disparadores" de la UI) ---
-        // Estos métodos llaman al Manejador
 
         private void PantallaNuevaRevision_Load(object sender, EventArgs e)
         {
@@ -140,14 +144,12 @@ namespace RedSismica.App
 
             btnIniciarCU.Visible = false;
 
-            // Inicia el caso de uso
             opcionRegistrarResultadoRevisionManual();
         }
 
         public void opcionRegistrarResultadoRevisionManual()
         {
             Habilitar();
-            // Llama al manejador para que inicie el flujo
             manejador.RegistrarNuevaRevision(this);
         }
 
@@ -156,7 +158,6 @@ namespace RedSismica.App
             if (gridEventos.SelectedRows.Count > 0)
             {
                 int index = gridEventos.SelectedRows[0].Index;
-                // Informa al manejador la selección
                 manejador.TomarSeleccionEvento(index, this);
             }
         }
@@ -204,7 +205,6 @@ namespace RedSismica.App
         private void btnConfirmar_Click(object sender, EventArgs e)
         {
             int opcion = cmbAccion.SelectedIndex + 1;
-            // Valida que se haya seleccionado algo
             if (opcion > 0)
             {
                 manejador.TomarOpcionAccion(opcion, this);
@@ -217,12 +217,20 @@ namespace RedSismica.App
 
         private void btnCancelar_Click(object sender, EventArgs e)
         {
-            // Reinicia la pantalla y el manejador
+            // --- REQUISITO 2: Revertir el estado ---
+            // Le decimos al manejador que revierta el evento
+            // actualmente "Bloqueado" a "Autodetectado"
+            manejador.CancelarRevisionActual();
+
+            // Reinicia la pantalla a su estado visual inicial
             RestaurarEstadoInicial();
+
+            // Vuelve a cargar la lista de eventos (que ahora
+            // incluirá el evento que acabamos de revertir)
             manejador.RegistrarNuevaRevision(this);
         }
 
-        private void RestaurarEstadoInicial()
+        public void RestaurarEstadoInicial()
         {
             grpMapa.Visible = false;
             rbtnMapaSi.Checked = false;
@@ -264,7 +272,6 @@ namespace RedSismica.App
             gridEventos.ClearSelection();
         }
 
-        // --- Eventos vacíos (necesarios para el Designer) ---
         private void picSismograma_Click(object sender, EventArgs e) { }
         private void gridEventos_CellContentClick(object sender, DataGridViewCellEventArgs e) { }
     }
