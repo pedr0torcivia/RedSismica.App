@@ -1,4 +1,4 @@
-// 1. Using LIMPIOS - Apuntan a nuestros proyectos
+// 1. Using LIMPIOS
 using RedSismica.App.Controladores;
 using RedSismica.App.Services;
 using RedSismica.Core.Entities;
@@ -11,7 +11,6 @@ using System;
 // 2. Namespace CORRECTO
 namespace RedSismica.App
 {
-    // Es una 'partial class', la otra mitad es el .Designer.cs
     public partial class PantallaNuevaRevision : Form
     {
         // 3. El Manejador es privado
@@ -25,13 +24,14 @@ namespace RedSismica.App
         }
 
         // --- MÉTODOS PÚBLICOS (La "Interfaz" de la Vista) ---
+        // (Llamados por el Manejador)
 
         public void Habilitar()
         {
             this.Enabled = true;
         }
 
-        // --- MÉTODO NUEVO (Llamado por FinCU) ---
+        // (Llamado por Manejador.FinCU)
         public void ReiniciarVistaParaNuevoCU()
         {
             // Oculta todos los controles
@@ -40,7 +40,6 @@ namespace RedSismica.App
                 if (ctrl != btnIniciarCU)
                     ctrl.Visible = false;
             }
-
             // Muestra solo el botón de inicio
             btnIniciarCU.Visible = true;
         }
@@ -65,12 +64,14 @@ namespace RedSismica.App
             {
                 txtSismograma.Visible = false;
                 picSismograma.Visible = true;
+
                 if (picSismograma.Image != null)
                 {
                     var old = picSismograma.Image;
                     picSismograma.Image = null;
                     old.Dispose();
                 }
+
                 using (var fs = new FileStream(rutaImagen, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
                     picSismograma.Image = Image.FromStream(fs);
@@ -85,41 +86,48 @@ namespace RedSismica.App
             }
         }
 
+        // --- HABILITACIÓN PROGRESIVA (CORREGIDA) ---
+        // (Llamados por Manejador.habilitarOpciones)
+
         public void opcionMostrarMapa()
         {
-            grpMapa.Visible = true;
+            grpMapa.Visible = true; // <-- Este estaba bien
         }
 
         public void OpcionModificacionAlcance()
         {
             grpModificarAlcance.Enabled = true;
+            grpModificarAlcance.Visible = true; // <-- CORRECCIÓN
         }
 
         public void OpcionModificacionMagnitud()
         {
             grpModificarMagnitud.Enabled = true;
+            grpModificarMagnitud.Visible = true; // <-- CORRECCIÓN
         }
 
         public void OpcionModificacionOrigen()
         {
             grpModificarOrigen.Enabled = true;
+            grpModificarOrigen.Visible = true; // <-- CORRECCIÓN
         }
 
         public void SolicitarSeleccionAcciones()
         {
             cmbAccion.Enabled = true;
             btnConfirmar.Enabled = true;
-        }
-
-        public void MostrarMensaje(string texto)
-        {
-            MessageBox.Show(texto);
+            cmbAccion.Visible = true; // <-- CORRECCIÓN
+            btnConfirmar.Visible = true; // <-- CORRECCIÓN
         }
 
         public void MostrarBotonCancelar()
         {
             btnCancelar.Visible = true;
-            btnConfirmar.Visible = true;
+        }
+
+        public void MostrarMensaje(string texto)
+        {
+            MessageBox.Show(texto);
         }
 
         // --- EVENT HANDLERS (Los "Disparadores" de la UI) ---
@@ -136,21 +144,16 @@ namespace RedSismica.App
             btnIniciarCU.Top = (this.ClientSize.Height - btnIniciarCU.Height) / 2;
         }
 
+        // (Este método ya estaba corregido y está bien)
         private void btnIniciarCU_Click(object sender, EventArgs e)
         {
-            // --- CORRECCIÓN ---
-            // 1. Ocultamos el botón de inicio
             btnIniciarCU.Visible = false;
 
-            // 2. Mostramos SOLO los controles del primer paso
-            // (La grilla y los textboxes de detalle/sismograma)
+            // Mostramos SOLO los controles del primer paso
             gridEventos.Visible = true;
             txtDetalleEvento.Visible = true;
             txtSismograma.Visible = true;
 
-            // (El 'grpMapa' y los demás permanecen ocultos)
-
-            // 3. Iniciamos el flujo
             opcionRegistrarResultadoRevisionManual();
         }
 
@@ -168,6 +171,8 @@ namespace RedSismica.App
                 manejador.TomarSeleccionEvento(index, this);
             }
         }
+
+        // --- Eventos de los Radio Buttons ---
 
         private void rbtnMapaNo_Click(object sender, EventArgs e)
         {
@@ -209,9 +214,11 @@ namespace RedSismica.App
             manejador.TomarOpcionModificacionOrigen(true, this);
         }
 
+        // --- Eventos de los Botones de Acción ---
+
         private void btnConfirmar_Click(object sender, EventArgs e)
         {
-            int opcion = cmbAccion.SelectedIndex + 1;
+            int opcion = cmbAccion.SelectedIndex + 1; // (1=Confirmar, 2=Rechazar, 3=Derivar)
             if (opcion > 0)
             {
                 manejador.TomarOpcionAccion(opcion, this);
@@ -222,21 +229,17 @@ namespace RedSismica.App
             }
         }
 
+        // (Implementa REQ 2: Revertir a Autodetectado)
         private void btnCancelar_Click(object sender, EventArgs e)
         {
-            // --- REQUISITO 2: Revertir el estado ---
-            // Le decimos al manejador que revierta el evento
-            // actualmente "Bloqueado" a "Autodetectado"
+            // Llama al Manejador para revertir el estado
             manejador.CancelarRevisionActual();
 
-            // Reinicia la pantalla a su estado visual inicial
-            RestaurarEstadoInicial();
-
-            // Vuelve a cargar la lista de eventos (que ahora
-            // incluirá el evento que acabamos de revertir)
-            manejador.RegistrarNuevaRevision(this);
+            // (El manejador ahora llama a RestaurarEstadoInicial
+            //  y a RegistrarNuevaRevision internamente)
         }
 
+        // (Llamado por Manejador.FinCU y btnCancelar_Click)
         public void RestaurarEstadoInicial()
         {
             grpMapa.Visible = false;
@@ -244,19 +247,23 @@ namespace RedSismica.App
             rbtnMapaNo.Checked = false;
 
             grpModificarAlcance.Enabled = false;
+            grpModificarAlcance.Visible = false; // <-- Ocultar
             rbtnModAlcanceSi.Checked = false;
             rbtnModAlcanceNo.Checked = false;
 
             grpModificarMagnitud.Enabled = false;
+            grpModificarMagnitud.Visible = false; // <-- Ocultar
             rbtnModMagnitudSi.Checked = false;
             rbtnModMagnitudNo.Checked = false;
 
             grpModificarOrigen.Enabled = false;
+            grpModificarOrigen.Visible = false; // <-- Ocultar
             rbtnModOrigenSi.Checked = false;
             rbtnModOrigenNo.Checked = false;
 
             cmbAccion.SelectedIndex = -1;
             cmbAccion.Enabled = false;
+            cmbAccion.Visible = false; // <-- Ocultar
 
             btnConfirmar.Enabled = false;
             btnConfirmar.Visible = false;
@@ -264,7 +271,7 @@ namespace RedSismica.App
 
             txtDetalleEvento.Clear();
             txtSismograma.Clear();
-            lblMapa.Text = "";
+            // lblMapa.Text = ""; // (Este control no estaba en tu designer)
 
             if (picSismograma.Image != null)
             {
@@ -279,6 +286,7 @@ namespace RedSismica.App
             gridEventos.ClearSelection();
         }
 
+        // --- Eventos vacíos (necesarios para el Designer) ---
         private void picSismograma_Click(object sender, EventArgs e) { }
         private void gridEventos_CellContentClick(object sender, DataGridViewCellEventArgs e) { }
     }
