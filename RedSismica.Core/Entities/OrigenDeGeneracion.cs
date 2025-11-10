@@ -1,0 +1,11 @@
+// En: RedSismica.Core/Entities/OrigenDeGeneracion.cs
+namespace RedSismica.Core.Entities
+{
+    public class OrigenDeGeneracion
+    {
+        public string? Descripcion { get; set; }
+        public string? Nombre { get; set; }
+
+        public string? getNombreOrigen() => this.Nombre;
+    }
+}
